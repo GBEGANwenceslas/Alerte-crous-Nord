@@ -1,0 +1,41 @@
+name: Surveillance CROUS Nord-Pas-de-Calais
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # toutes les ~10 minutes (au mieux, GitHub ne garantit pas la minute)
+  workflow_dispatch: {}       # permet de lancer un cycle manuellement depuis l'onglet Actions
+
+concurrency:
+  group: crous-surveillance
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: Lancer un cycle de surveillance
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CROUS_BOUNDS: ${{ secrets.CROUS_BOUNDS }}
+        run: python run_once.py
+
+      - name: Sauvegarder l'état (logements déjà vus)
+        run: |
+          git config user.name "crous-bot"
+          git config user.email "crous-bot@users.noreply.github.com"
+          git add logements_vus.json
+          git diff --staged --quiet || git commit -m "chore: mise à jour des logements vus"
+          git push
